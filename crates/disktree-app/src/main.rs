@@ -51,6 +51,9 @@ const USAGE: &str = "\
 disktree — a treemap of what is using your disk
 
 usage: disktree [OPTIONS] [PATH]
+       disktree scan [OPTIONS] [PATH]   headless, read-only report (--json)
+       disktree summary [PATH]          free space on PATH's volume
+       disktree mcp                     MCP server on stdio for AI agents
 
 arguments:
   PATH              directory to scan (default: the home directory)
@@ -78,19 +81,30 @@ options:
       --thread-system-cpu-percent N
                         best-effort host CPU budget; 0 disables it (80)
       --metric files    rank by file count instead of bytes
+  -V, --version         print the version
   -h, --help            show this help
 ";
 
 fn main() -> Result<()> {
     #[cfg(windows)]
     console::attach();
-    let outcome = run();
+    // `scan`, `summary` and `mcp` run headless and read-only, and are
+    // handed over before anything else: no settings are loaded or saved,
+    // and the cmux re-spawn in `run`, which sends stdout to /dev/null, is
+    // never reached. A directory named `scan` opens as `./scan`.
+    let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    if let Some(status) = disktree_agent::cli::dispatch(&args) {
+        #[cfg(windows)]
+        console::detach();
+        std::process::exit(status);
+    }
+    let outcome = run(args);
     #[cfg(windows)]
     console::detach();
     outcome
 }
 
-fn run() -> Result<()> {
+fn run(args: Vec<std::ffi::OsString>) -> Result<()> {
     let saved = power::settings_path()
         .map_or_else(
             || Ok(power::PowerEfficiency::default()),
@@ -100,7 +114,7 @@ fn run() -> Result<()> {
             eprintln!("Cannot load Power Efficiency: {error}; using Balanced");
             power::PowerEfficiency::default()
         });
-    let args = parse_args_with_power(std::env::args_os().skip(1), saved)?;
+    let args = parse_args_with_power(args.into_iter(), saved)?;
 
     // When the app executable is reached through the command-line symlink,
     // cmux sends SIGTERM to its foreground process group as AppKit takes
@@ -234,6 +248,10 @@ fn parse_args_with_power(
         match arg.to_str().unwrap_or_default() {
             "-h" | "--help" => {
                 println!("{USAGE}");
+                std::process::exit(0);
+            }
+            "-V" | "--version" => {
+                println!("disktree {}", env!("CARGO_PKG_VERSION"));
                 std::process::exit(0);
             }
             "-a" | "--apparent-size" => options.apparent_size = true,

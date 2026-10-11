@@ -98,6 +98,10 @@ pub mod size {
     pub const TOOLTIP: Rems = Rems(16.75);
     /// The keyboard overlay.
     pub const HELP: Rems = Rems(32.5);
+    /// The AI agent panel: wide enough for the prompt's commands.
+    pub const AGENT: Rems = Rems(40.0);
+    /// The prompt preview inside it, before it scrolls.
+    pub const AGENT_PROMPT: Rems = Rems(15.0);
     /// The key column of the keyboard overlay.
     pub const KEY_LANE: Rems = Rems(7.0);
 }
