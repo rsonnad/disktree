@@ -400,6 +400,7 @@ fn top_children_are_the_largest_by_bytes_whatever_the_ranking() {
     let scanned = Scanned {
         root: canonical,
         tree: std::sync::Arc::new(tree),
+        host: None,
         settings,
         scanned_at: chrono::Utc::now().timestamp(),
         elapsed: std::time::Duration::ZERO,
@@ -490,4 +491,25 @@ fn sections_are_chosen() {
     );
     assert!(Sections::parse("").is_err());
     assert!(Sections::parse("dirs,bogus").is_err());
+}
+
+/// A tree scanned over SSH is reported with its host, and nothing about
+/// this computer's disk stands in for the server's.
+#[test]
+fn a_remote_scan_names_its_host_and_claims_no_local_volume() {
+    let (_temp, local) = tree();
+    let scanned = Scanned {
+        host: Some("dev".to_owned()),
+        ..local
+    };
+    let report = make(&scanned, &base(&scanned));
+    assert_eq!(report["host"], "dev");
+    assert!(report["volume"].is_null());
+    assert!(report["reclaimable"]["available_after"].is_null());
+    // Everything measured from the tree itself is still there.
+    assert_eq!(report["total"]["bytes"], 124_200);
+    assert!(report["reclaimable"]["bytes"].as_u64() > Some(0));
+
+    let (_temp, local) = tree();
+    assert!(make(&local, &base(&local)).get("host").is_none());
 }

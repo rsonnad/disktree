@@ -79,6 +79,9 @@ pub struct Scanned {
     pub root: PathBuf,
     /// Shared, so the window can report on the tree it already holds.
     pub tree: Arc<Node>,
+    /// The SSH host the tree was scanned on, or `None` for this computer.
+    /// A remote root says nothing about this computer's disks.
+    pub host: Option<String>,
     pub settings: ScanSettings,
     /// Unix seconds when the scan finished.
     pub scanned_at: i64,
@@ -122,6 +125,7 @@ pub fn scan(
     Ok(Scanned {
         root: root.to_path_buf(),
         tree: Arc::new(tree),
+        host: None,
         settings: settings.clone(),
         scanned_at: chrono::Utc::now().timestamp(),
         elapsed: started.elapsed(),
@@ -156,8 +160,9 @@ pub fn report(
     walk.visit(tree, &mut path, 1, Category::Other, true);
 
     let sections = query.sections;
-    let volume = sections
-        .volume()
+    // This computer's free space, measured here: never for a root on a
+    // server, whose path may not exist here or may name something else.
+    let volume = (sections.volume() && scanned.host.is_none())
         .then(|| space::space_info(&scanned.root).ok())
         .flatten();
 
@@ -170,6 +175,9 @@ pub fn report(
         "generator",
         json!({ "name": "disktree", "version": VERSION }),
     );
+    if let Some(host) = &scanned.host {
+        put("host", host.clone().into());
+    }
     put("root", path_text(&scanned.root).into());
     put("scanned_at", time_text(scanned.scanned_at).into());
     put("scan_seconds", round1(scanned.elapsed.as_secs_f64()).into());

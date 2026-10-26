@@ -35,7 +35,8 @@ Keys appear in this order: the short answers first, the long lists last.
 | key | present | what it holds |
 | --- | --- | --- |
 | `schema_version`, `generator` | always | format version; `{name, version}` of disktree |
-| `root` | always | the scanned directory, canonical |
+| `host` | SSH scans | the server the tree was scanned on, for a report exported from a window showing an SSH scan. Absent for this computer |
+| `root` | always | the scanned directory, canonical (on `host` when present) |
 | `scanned_at`, `scan_seconds` | always | when the walk finished, and how long it took. The MCP server reuses a scan for five minutes, so `scanned_at` can be older than the call |
 | `options` | always | `size_mode` (`on_disk` like `du`, or `apparent` like `ls -l`), `one_filesystem`, `include_hidden`, `follow_links`, `exclude`, `top`, `depth` |
 | `filters` | always | the filters the lists were made with; `older_than` is the resolved cutoff time |
@@ -67,7 +68,8 @@ directory list, and `largest_files` and `list_files` are the file list.
 ```
 
 `root_percent_of_used` is how much of the volume's used space this tree is.
-`null` if the volume cannot be measured.
+`null` if the volume cannot be measured, and always for an SSH scan: the
+server's disk is not this computer's to measure.
 
 ### `breakdown`
 

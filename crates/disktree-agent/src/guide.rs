@@ -83,6 +83,39 @@ Do not delete, move or change anything until I approve each item.",
     )
 }
 
+/// A prompt for a scan made over SSH.
+///
+/// disktree's commands run on this computer and cannot reach the server's
+/// files, so the agent works from the exported report instead, and
+/// anything it proposes runs on `host`.
+pub fn remote_prompt(host: &str, root: &Path) -> String {
+    let host = serde_json::Value::from(host).to_string();
+    let root = serde_json::Value::from(root.to_string_lossy().into_owned())
+        .to_string();
+    format!(
+        "\
+I want to free up disk space on the server {host}. I scanned {root} on it \
+with disktree, a read-only disk usage tool, and exported the report as JSON \
+(attached).
+
+Please:
+1. Read the report. Sizes, percentages and ages are already calculated, so \
+there is no need to add anything up. \"breakdown\" splits the total by \
+top-level folder, by kind of data and by age. \"reclaimable\" lists caches, \
+build output, dependencies and other space that can usually be recreated, \
+with what each reason means. In \"largest_dirs\", \"nested_in\" marks a \
+folder already counted inside another one.
+2. Give me a short plan, biggest wins first: what to remove, how much \
+space each frees, how safe it is and why, and the exact command to run on \
+the server. Prefer the owning tool's own cleanup over deleting by hand.
+3. Every command runs on {host} over SSH, never on this computer. Before \
+any destructive step, check that the hostname matches the server that was \
+scanned, and stop if it does not.
+
+Do not delete, move or change anything until I approve each item."
+    )
+}
+
 /// The MCP settings for Claude Desktop, Cursor and other clients that
 /// read an `mcpServers` block.
 pub fn mcp_config(exe: &Path) -> String {
@@ -121,6 +154,16 @@ mod tests {
         assert!(prompt.contains("read-only"));
         assert!(prompt.contains("until I approve each item"));
         assert!(prompt.contains("--min-size 1G"));
+    }
+
+    #[test]
+    fn a_remote_prompt_works_from_the_report_and_names_the_server() {
+        let prompt = remote_prompt("dev\"box", Path::new("/srv/data"));
+        assert!(prompt.contains(r#"server "dev\"box""#), "{prompt}");
+        assert!(prompt.contains(r#""/srv/data""#));
+        assert!(prompt.contains("exported the report as JSON"));
+        assert!(prompt.contains("never on this computer"));
+        assert!(!prompt.contains("scan --json"), "no local commands");
     }
 
     #[test]

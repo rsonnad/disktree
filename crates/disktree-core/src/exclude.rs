@@ -104,6 +104,27 @@ impl Exclude {
     }
 }
 
+/// On the wire, the patterns as given: a list of strings.
+impl serde::Serialize for Exclude {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.collect_seq(self.patterns())
+    }
+}
+
+/// Compiled again on arrival, so a pattern the receiver cannot match is an
+/// error rather than a silently wider scan.
+impl<'de> serde::Deserialize<'de> for Exclude {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        let patterns = Vec::<String>::deserialize(deserializer)?;
+        Self::new(patterns).map_err(serde::de::Error::custom)
+    }
+}
+
 impl fmt::Debug for Exclude {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.patterns()).finish()
@@ -259,6 +280,19 @@ mod tests {
         assert!(Exclude::new::<_, &str>([]).expect("empty").is_empty());
         assert!(Exclude::new(["x".repeat(200)]).is_err());
         assert!(!Exclude::default().matches("x", PathBuf::new));
+    }
+
+    #[test]
+    fn patterns_travel_as_a_list_of_strings() {
+        let exclude =
+            Exclude::new(["node_modules", "/srv/**/cache"]).expect("compiles");
+        let wire = serde_json::to_string(&exclude).expect("serializes");
+        assert_eq!(wire, r#"["node_modules","/srv/**/cache"]"#);
+        let back: Exclude = serde_json::from_str(&wire).expect("parses");
+        assert!(back.matches_path(Path::new("/a/node_modules")));
+        assert!(back.matches_path(Path::new("/srv/x/cache")));
+        let long = serde_json::to_string(&["x".repeat(200)]).expect("json");
+        assert!(serde_json::from_str::<Exclude>(&long).is_err());
     }
 
     #[test]

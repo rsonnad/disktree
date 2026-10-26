@@ -4,6 +4,7 @@ members = [
     "crates/disktree-agent",
     "crates/disktree-app",
     "crates/disktree-core",
+    "crates/disktree-scan",
     "xtask",
 ]
 
